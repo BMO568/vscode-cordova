@@ -32,11 +32,13 @@ import { CordovaWorkspaceManager } from "../extension/cordovaWorkspaceManager";
 import { CordovaSessionManager } from "../extension/cordovaSessionManager";
 import { SourcemapPathTransformer } from "./cdp-proxy/sourcemapPathTransformer";
 import { CordovaSession, CordovaSessionStatus } from "./debugSessionWrapper";
-import * as nls from "vscode-nls";
+import { GeneralCordovaPlatform } from "../utils/generalCordovaPlatform";
 import { NodeVersionHelper } from "../utils/nodeVersionHelper";
 import { AdbHelper } from "../utils/android/adb";
 import { AndroidTargetManager, AndroidTarget } from "../utils/android/androidTargetManager";
 import { LaunchScenariosManager } from "../utils/launchScenariosManager";
+import { CordovaPlatformResolver } from "../utils/cordovaPlatformResolver";
+import * as nls from "vscode-nls";
 nls.config({ messageFormat: nls.MessageFormat.bundle, bundleFormat: nls.BundleFormat.standalone })();
 const localize = nls.loadMessageBundle();
 
@@ -58,19 +60,6 @@ export enum TargetType {
 export enum PwaDebugType {
     Node = "pwa-node",
     Chrome = "pwa-chrome",
-}
-
-export enum PlatformType {
-    Android = "android",
-    IOS = "ios",
-    Windows = "windows",
-    Serve = "serve",
-    AmazonFireos = "amazon_fireos",
-    Blackberry10 = "blackberry10",
-    Firefoxos = "firefoxos",
-    Ubuntu = "ubuntu",
-    Wp8 = "wp8",
-    Browser = "browser",
 }
 
 export type DebugConsoleLogger = (message: string, error?: boolean | string) => void;
@@ -115,6 +104,7 @@ export class CordovaDebugSession extends LoggingDebugSession {
     private onDidTerminateDebugSessionHandler: vscode.Disposable;
     private cancellationTokenSource: vscode.CancellationTokenSource;
     private vsCodeDebugSession: vscode.DebugSession;
+    private cordovaPlatform: GeneralCordovaPlatform;
 
     constructor(
         private cordovaSession: CordovaSession,
@@ -220,45 +210,9 @@ export class CordovaDebugSession extends LoggingDebugSession {
                         launchArgs.allEnv = CordovaProjectHelper.getEnvArgument(launchArgs);
                         generator.add("projectType", projectType, false);
                         this.outputLogger(localize("LaunchingForPlatform", "Launching for {0} (This may take a while)...", platform));
+                        generator.add("platform", platform, false);
 
-                        switch (platform) {
-                            case PlatformType.Android:
-                                generator.add("platform", platform, false);
-                                if (SimulateHelper.isSimulateTarget(launchArgs.target)) {
-                                    return this.launchSimulate(launchArgs, projectType, generator);
-                                } else {
-                                    return this.launchAndroid(launchArgs, projectType, runArguments);
-                                }
-                            case PlatformType.IOS:
-                                generator.add("platform", platform, false);
-                                if (SimulateHelper.isSimulateTarget(launchArgs.target)) {
-                                    return this.launchSimulate(launchArgs, projectType, generator);
-                                } else {
-                                    return this.launchIos(launchArgs, projectType, runArguments);
-                                }
-                            case PlatformType.Windows:
-                                generator.add("platform", platform, false);
-                                if (SimulateHelper.isSimulateTarget(launchArgs.target)) {
-                                    return this.launchSimulate(launchArgs, projectType, generator);
-                                } else {
-                                    throw new Error(`Debugging ${platform} platform is not supported.`);
-                                }
-                            case PlatformType.Serve:
-                                generator.add("platform", platform, false);
-                                return this.launchServe(launchArgs, projectType, runArguments);
-                            // https://github.com/apache/cordova-serve/blob/4ad258947c0e347ad5c0f20d3b48e3125eb24111/src/util.js#L27-L37
-                            case PlatformType.AmazonFireos:
-                            case PlatformType.Blackberry10:
-                            case PlatformType.Firefoxos:
-                            case PlatformType.Ubuntu:
-                            case PlatformType.Wp8:
-                            case PlatformType.Browser:
-                                generator.add("platform", platform, false);
-                                return this.launchSimulate(launchArgs, projectType, generator);
-                            default:
-                                generator.add("unknownPlatform", platform, true);
-                                throw new Error(localize("UnknownPlatform", "Unknown Platform: {0}", platform));
-                        }
+                        return this.cordovaPlatform.launchApp(launchArgs, projectType, runArguments, generator);
                     })
                     .catch((err) => {
                         this.outputLogger(err.message || err, true);
@@ -441,6 +395,11 @@ export class CordovaDebugSession extends LoggingDebugSession {
     private initializeSettings(args: ICordovaAttachRequestArgs | ICordovaLaunchRequestArgs): void {
         if (!this.isSettingsInitialized) {
             this.workspaceManager = CordovaWorkspaceManager.getWorkspaceManagerByProjectRootPath(args.cwd);
+            this.cordovaPlatform = new CordovaPlatformResolver().resolveCordovaPlatform(
+                args.platform,
+                args.target,
+                this.workspaceManager,
+            );
             this.isSettingsInitialized = true;
             logger.setup(args.trace ? Logger.LogLevel.Verbose : Logger.LogLevel.Log);
             this.cdpProxyLogLevel = args.trace ? LogLevel.Custom : LogLevel.None;

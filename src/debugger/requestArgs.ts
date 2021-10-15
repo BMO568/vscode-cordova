@@ -21,8 +21,6 @@ export interface ICordovaAttachRequestArgs extends DebugProtocol.AttachRequestAr
     sourceMaps?: boolean;
     sourceMapPathOverrides?: ISourceMapPathOverrides;
     webSocketDebuggerUrl?: string;
-    webkitRangeMin?: number;
-    webkitRangeMax?: number;
     attachAttempts?: number;
     attachDelay?: number;
     attachTimeout?: number;
@@ -32,6 +30,8 @@ export interface ICordovaAttachRequestArgs extends DebugProtocol.AttachRequestAr
     // iOS debug properties
     iOSVersion?: string;
     iOSAppPackagePath?: string;
+    webkitRangeMin?: number;
+    webkitRangeMax?: number;
 
     // Ionic livereload properties
     ionicLiveReload?: boolean;

@@ -144,6 +144,10 @@ export class AdbHelper {
         return sdkLocation ? `"${path.join(sdkLocation, "platform-tools", "adb")}"` : "adb";
     }
 
+    public executeQuery(targetId: string, command: string): Promise<string> {
+        return this.childProcess.execToString(this.generateCommandForTarget(targetId, command));
+    }
+
     private parseConnectedTargets(input: string): IDebuggableMobileTarget[] {
         let result: IDebuggableMobileTarget[] = [];
         let regex = new RegExp("^(\\S+)\\t(\\S+)$", "mg");
@@ -161,10 +165,6 @@ export class AdbHelper {
 
     private determineIfItIsVirtualTarget(id: string): boolean {
         return !!id.match(AndroidSDKEmulatorPattern);
-    }
-
-    private executeQuery(targetId: string, command: string): Promise<string> {
-        return this.childProcess.execToString(this.generateCommandForTarget(targetId, command));
     }
 
     private execute(targetId: string, command: string): Promise<string> {
